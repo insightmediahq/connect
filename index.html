@@ -36,14 +36,23 @@
       return (p.get("slug")||"").trim();
     }
 
+    function platformFromUrl(){
+      var p = new URLSearchParams(location.search);
+      return (p.get("platform")||"").trim().toLowerCase();
+    }
+
     function launch(cfg){
       if(!window.PhylloConnect){ setCard("Couldn't load", "Please refresh the page or contact your manager."); return; }
-      var c = window.PhylloConnect.initialize({
+      var init = {
         clientDisplayName: cfg.clientDisplayName || "Insight Media",
         environment: cfg.environment,
         userId: cfg.userId,
         token: cfg.token
-      });
+      };
+      // Lock the widget to a single platform when the link says so (stops out-of-scope
+      // connections like YouTube / Instagram Lite, which has no audience demographics).
+      if(cfg.workPlatformId){ init.workPlatformId = cfg.workPlatformId; }
+      var c = window.PhylloConnect.initialize(init);
       c.on("accountConnected", function(a,w,u){ setCard("You're all set 🎉", "Your account is connected. You can close this page."); });
       c.on("accountDisconnected", function(a,w,u){ console.log("disconnected", a); });
       c.on("tokenExpired", function(u){ setCard("Link expired", "Please ask your manager for a fresh connection link."); });
@@ -55,7 +64,9 @@
     function start(){
       var slug = slugFromUrl();
       if(!slug){ setCard("Invalid link", "This connection link is missing its code. Please ask your manager for a new one."); return; }
-      fetch(TOKEN_ENDPOINT + "?slug=" + encodeURIComponent(slug))
+      var platform = platformFromUrl();
+      var qs = "?slug=" + encodeURIComponent(slug) + (platform ? "&platform=" + encodeURIComponent(platform) : "");
+      fetch(TOKEN_ENDPOINT + qs)
         .then(function(r){ return r.json(); })
         .then(function(cfg){
           if(!cfg || cfg.error || !cfg.token){ setCard("Something went wrong", "We couldn't start the connection. Please try again shortly."); return; }
