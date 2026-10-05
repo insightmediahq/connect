@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <meta name="referrer" content="no-referrer">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex" />
@@ -18,7 +19,7 @@
 <body>
   <div class="card" id="card">
     <h1>Connect your social accounts</h1>
-    <p>Insight Media uses this one-time, secure connection to read your audience demographics for your media kit. It takes about 60 seconds, and we never see your password.</p>
+    <p>Insight Media uses this secure connection to read your audience demographics for your media kit. It takes about 60 seconds, and we never see your password.</p>
     <button class="btn" id="go" disabled>Loading…</button>
     <p class="muted">Powered by Phyllo · Insight Media</p>
   </div>
@@ -65,10 +66,18 @@
       var slug = slugFromUrl();
       if(!slug){ setCard("Invalid link", "This connection link is missing its code. Please ask your manager for a new one."); return; }
       var platform = platformFromUrl();
-      var qs = "?slug=" + encodeURIComponent(slug) + (platform ? "&platform=" + encodeURIComponent(platform) : "");
+      // Links are signed per creator and expire (the token endpoint refuses unsigned ones), so a
+      // creator's public roster slug alone can no longer start a connection.
+      var p = new URLSearchParams(location.search);
+      var exp = (p.get("exp")||"").trim(), sig = (p.get("sig")||"").trim();
+      if(!exp || !sig){ setCard("This link is out of date", "Connection links now come with a security code. Please ask your manager for a fresh link, or use the one in your Insight Media questionnaire."); return; }
+      var qs = "?slug=" + encodeURIComponent(slug) + "&exp=" + encodeURIComponent(exp) + "&sig=" + encodeURIComponent(sig) +
+               (platform ? "&platform=" + encodeURIComponent(platform) : "");
       fetch(TOKEN_ENDPOINT + qs)
         .then(function(r){ return r.json(); })
         .then(function(cfg){
+          if(cfg && cfg.error === "link_expired"){ setCard("This link has expired", "For your security, connection links expire. Ask your manager for a new one, or tap Connect again in your Insight Media questionnaire."); return; }
+          if(cfg && cfg.error === "link_invalid"){ setCard("This link isn't valid", "Please use the exact link your manager sent you, or tap Connect in your Insight Media questionnaire."); return; }
           if(!cfg || cfg.error || !cfg.token){ setCard("Something went wrong", "We couldn't start the connection. Please try again shortly."); return; }
           var btn = document.getElementById("go");
           if(btn){ btn.disabled = false; btn.textContent = "Connect now"; btn.onclick = function(){ launch(cfg); }; }
